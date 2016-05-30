@@ -1,0 +1,110 @@
+---
+title: "Prediction Assignment Writeup"
+output: html_document
+author: KismetK
+---
+
+#Introduction
+###Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement ??? a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+More information is available from the website here:http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+###Objective
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+###Library Preparation
+```{r}
+library(knitr)
+library(randomForest)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(corrplot)
+library(randomForest)
+library(gbm)
+```
+
+#Data Preparation
+###Loading the Data
+```{r}
+trainData <- read.csv("pml-training.csv", header = TRUE)
+testData <- read.csv("pml-testing.csv", header = TRUE)
+dim(trainData)
+```
+The raw dataset contained 19622 rows of data with 160 variables. Many variables contained missing data, so we need to removed from the raw dataset(trainData) to train dataset.
+
+###Cleaning the Data
+```{r}
+train_filter <- colnames(trainData[colSums(is.na(trainData)) == 0])
+train <- trainData[train_filter]
+train <- trainData[,c(8:11,37:49,60:68,84:86,102,113:124,140,151:160)]
+dim(train)
+```
+After the cleaning of the dataset, we found there are now 19622 rows of data with 53 varibles.
+
+###Partioning the training set
+Partioning Training data set into two data sets, 60% for TrainSet, 40% for TestSet:
+```{r}
+inTrain  <- createDataPartition(train$classe, p=0.6, list=FALSE)
+TrainSet <- train[inTrain, ]
+TestSet  <- train[-inTrain, ]
+dim(TrainSet)
+dim(TestSet)
+```
+
+#Prediction Model Building
+I am going to explore the data with 2 models, Random Forest and Generalized Boosted Model. It was determined that the Random Forest method produced the best results. 
+
+A Confusion Matrix is listed at the end of each analysis to show the accuracy of the models.
+
+###Prediction with Random Forests
+```{r}
+set.seed(1777)
+
+RandomForest <- randomForest(classe~.,data=TrainSet,ntree=500,importance=TRUE)
+
+RandomForest
+```
+
+```{r}
+plot(RandomForest)
+```
+
+#####Prediction on Test dataset
+```{r}
+predictRandomForest <- predict(RandomForest, newdata = TestSet)
+CMRandForest <- confusionMatrix(predictRandomForest, TestSet$classe)
+CMRandForest
+```
+
+###Prediction with Generalized Boosted Model
+```{r}
+set.seed(12345)
+
+traincontrolGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+
+modelGMB  <- train(classe ~ ., data = TrainSet, method = "gbm", trControl = traincontrolGBM, verbose = FALSE)
+
+modelGMB$finalModel
+```
+
+```{r}
+predictGBM <- predict(modelGMB, newdata = TestSet)
+confMatGBM <- confusionMatrix(predictGBM, TestSet$classe)
+confMatGBM
+```
+
+#Predicting Results on the Test Data
+The accuracy of the 2 regression modeling methods above are:
+
+Random Forest : 0.9959
+GBM : 0.9616
+
+Random Forests gave an Accuracy in the TrainSet dataset of 99.29%, which was more accurate that what I got from the GBM. The expected out-of-sample error is 100-99.29 = 0.71%.
+
+```{r}
+predictTEST <- predict(RandomForest, newdata=testData)
+predictTEST
+```
+
